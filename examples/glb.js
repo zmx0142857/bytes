@@ -1,28 +1,33 @@
-import { promises as fs } from 'fs'
+import fs from 'fs/promises'
 import Bytes from '../lib/bytes.js'
 
-const ChunkType = {
-  fromBytes (bytes) {
-    const value = Bytes.toUint32(bytes)
-    if (value === 0x4E4F534A) return 'JSON'
-    if (value === 0x004E4942) return 'BIN'
-  },
-  toBytes (type) {
-    if (type === 'JSON') return Bytes.fromUint32(0x4E4F534A)
-    if (type === 'BIN') return Bytes.fromUint32(0x004E4942)
-  },
-}
+const { str, uint32 } = Bytes.types
 
 // spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 const glbConfig = [
-  { name: 'magic', length: 4, type: 'string' },
-  { name: 'version', length: 4, type: 'number' },
-  { name: 'length', length: 4, type: 'number' },
+  { name: 'magic', length: 4, type: str },
+  { name: 'version', length: 4, type: uint32 },
+  { name: 'length', length: 4, type: uint32 },
 ]
 
 const glbChunkConfig = [
-  { name: 'chunkLength', length: 4, type: 'number' },
-  { name: 'chunkType', length: 4, type: ChunkType },
+  { name: 'chunkLength', length: 4, type: uint32 },
+  {
+    name: 'chunkType',
+    length: 4,
+    type: str,
+    // type: {
+    //   fromBytes(bytes) {
+    //     const value = Bytes.toUint32(bytes)
+    //     if (value === 0x4E4F534A) return 'JSON'
+    //     if (value === 0x004E4942) return 'BIN'
+    //   },
+    //   toBytes(type) {
+    //     if (type === 'JSON') return Bytes.fromUint32(0x4E4F534A)
+    //     if (type === 'BIN') return Bytes.fromUint32(0x004E4942)
+    //   },
+    // },
+  },
 ]
 
 const Glb = {
@@ -96,6 +101,28 @@ const Glb = {
     })
     return fs.writeFile(outputPath, Bytes.join([fileHead, fileData]))
   },
+  async cli (argv) {
+    if (argv[2] === 'info') {
+      const bytes = await fs.readFile(argv[3])
+      console.dir(Glb.info(bytes), { depth: null })
+    } else if (argv[2] === 'toGltf') {
+      const bytes = await fs.readFile(argv[3])
+      Glb.toGltf(bytes, argv[4])
+    } else if (argv[2] === 'fromGltf') {
+      const bytes = await fs.readFile(argv[3], 'utf-8')
+      Glb.fromGltf(bytes, argv[4])
+    } else {
+      console.log(`
+usage: node index.js COMMAND PATH
+
+command:
+  info      show glb info
+  toGltf    convert glb to gltf
+  fromGltf  convert gltf to glb
+`)
+    }
+  }
+
 }
 
 export default Glb

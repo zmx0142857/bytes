@@ -1,30 +1,32 @@
-import { promises as fs } from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import Bytes from '../lib/bytes.js'
 import Progress from '../lib/progress.js'
 
+const { str, uint32 } = Bytes.types
+
 // spec: https://github.com/CesiumGS/3d-tiles
 const configs = {
   cmpt: [
-    { name: 'magic', length: 4, type: 'string' },
-    { name: 'version', length: 4, type: 'number' },
-    { name: 'byteLength', length: 4, type: 'number' },
-    { name: 'tilesLength', length: 4, type: 'number' },
+    { name: 'magic', length: 4, type: str },
+    { name: 'version', length: 4, type: uint32 },
+    { name: 'byteLength', length: 4, type: uint32 },
+    { name: 'tilesLength', length: 4, type: uint32 },
   ],
   b3dm: [
-    { name: 'magic', length: 4, type: 'string' },
-    { name: 'version', length: 4, type: 'number' },
-    { name: 'byteLength', length: 4, type: 'number' },
-    { name: 'featureTableJSONByteLength', length: 4, type: 'number' },
-    { name: 'featureTableBinaryByteLength', length: 4, type: 'number' },
-    { name: 'batchTableJSONByteLength', length: 4, type: 'number' },
-    { name: 'batchTableBinaryByteLength', length: 4, type: 'number' },
+    { name: 'magic', length: 4, type: str },
+    { name: 'version', length: 4, type: uint32 },
+    { name: 'byteLength', length: 4, type: uint32 },
+    { name: 'featureTableJSONByteLength', length: 4, type: uint32 },
+    { name: 'featureTableBinaryByteLength', length: 4, type: uint32 },
+    { name: 'batchTableJSONByteLength', length: 4, type: uint32 },
+    { name: 'batchTableBinaryByteLength', length: 4, type: uint32 },
   ],
 }
 
 configs.i3dm = [
   ...configs.b3dm,
-  { name: 'gltfFormat', length: 4, type: 'number' },
+  { name: 'gltfFormat', length: 4, type: uint32 },
 ]
 
 const Cmpt = {
@@ -102,6 +104,31 @@ const Cmpt = {
       tilesLength: files.length,
     })
     await fs.writeFile(outputPath, Bytes.join([headerBytes, ...buffers]))
+  },
+  async cli(argv) {
+    if (argv[2] === 'info') {
+      const bytes = await fs.readFile(argv[3])
+      const headers = Cmpt.info(bytes)
+      headers.forEach(header => console.log(header))
+    } else if (argv[2] === 'split') {
+      const bytes = await fs.readFile(argv[3])
+      await Cmpt.split(bytes, argv[4])
+    } else if (argv[2] === 'glb') {
+      const bytes = await fs.readFile(argv[3])
+      await Cmpt.glb(bytes, argv[4])
+    } else if (argv[2] === 'make') {
+      await Cmpt.make(argv[3], argv[4])
+    } else {
+      console.log(`
+usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
+
+command:
+  info    show information of the cmpt file
+  split   split cmpt file into b3dm & i3dm files
+  make    make cmpt file from b3dm & i3dm files
+  glb     extract glb files from cmpt
+`)
+    }
   },
 }
 

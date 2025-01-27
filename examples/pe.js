@@ -1,74 +1,72 @@
+import fs from 'fs/promises'
 import Bytes from '../lib/bytes.js'
 
-const DateType = {
-  fromBytes: (bytes) => new Date(Bytes.toUint32(bytes) * 1000),
-  toBytes: (date) => Bytes.fromUint32(date.getTime() / 1000 | 0),
-}
+const { str, uint8, uint16, uint32, timestamp } = Bytes.types
 
 const dosConfig = [
-  { name: 'magic', length: 2, type: 'string' },
-  { name: 'cblp', length: 2, type: 'number' },
-  { name: 'cp', length: 2, type: 'number' },
-  { name: 'crlc', length: 2, type: 'number' },
-  { name: 'cparhdr', length: 2, type: 'number' },
-  { name: 'minalloc', length: 2, type: 'number' },
-  { name: 'maxalloc', length: 2, type: 'number' },
-  { name: 'ss', length: 2, type: 'number' },
-  { name: 'sp', length: 2, type: 'number' },
-  { name: 'csum', length: 2, type: 'number' },
-  { name: 'ip', length: 2, type: 'number' },
-  { name: 'cs', length: 2, type: 'number' },
-  { name: 'lfarlc', length: 2, type: 'number' },
-  { name: 'ovno', length: 2, type: 'number' },
-  { name: 'res', length: 2, type: 'number', n: 4 },
-  { name: 'oemid', length: 2, type: 'number' },
-  { name: 'oeminfo', length: 2, type: 'number' },
-  { name: 'res2', length: 2, type: 'number', n: 10 },
-  { name: 'lfanew', length: 4, type: 'number' },
+  { name: 'magic', length: 2, type: str },
+  { name: 'cblp', length: 2, type: uint16 },
+  { name: 'cp', length: 2, type: uint16 },
+  { name: 'crlc', length: 2, type: uint16 },
+  { name: 'cparhdr', length: 2, type: uint16 },
+  { name: 'minalloc', length: 2, type: uint16 },
+  { name: 'maxalloc', length: 2, type: uint16 },
+  { name: 'ss', length: 2, type: uint16 },
+  { name: 'sp', length: 2, type: uint16 },
+  { name: 'csum', length: 2, type: uint16 },
+  { name: 'ip', length: 2, type: uint16 },
+  { name: 'cs', length: 2, type: uint16 },
+  { name: 'lfarlc', length: 2, type: uint16 },
+  { name: 'ovno', length: 2, type: uint16 },
+  { name: 'res', length: 2, type: uint16, n: 4 },
+  { name: 'oemid', length: 2, type: uint16 },
+  { name: 'oeminfo', length: 2, type: uint16 },
+  { name: 'res2', length: 2, type: uint16, n: 10 },
+  { name: 'lfanew', length: 4, type: uint32 },
 ]
 
 const ntConfig = [
-  { name: 'Signature', length: 4, type: 'string' },
-  { name: 'Machine', length: 2, type: 'number' },
-  { name: 'NumberOfSections', length: 2, type: 'number' },
-  { name: 'TimeDateStamp', length: 4, type: DateType },
-  { name: 'PointerToSymbolTable', length: 4, type: 'number' },
-  { name: 'NumberOfSymbols', length: 4, type: 'number' },
-  { name: 'SizeOfOptionalHeader', length: 2, type: 'number' },
-  { name: 'Characteristics', length: 2, type: 'number' },
+  { name: 'Signature', length: 4, type: str },
+  { name: 'Machine', length: 2, type: uint16 },
+  { name: 'NumberOfSections', length: 2, type: uint16 },
+  { name: 'TimeDateStamp', length: 4, type: timestamp },
+  { name: 'PointerToSymbolTable', length: 4, type: uint32 },
+  { name: 'NumberOfSymbols', length: 4, type: uint32 },
+  { name: 'SizeOfOptionalHeader', length: 2, type: uint16 },
+  { name: 'Characteristics', length: 2, type: uint16 },
 ]
 
 const optionalConfig = [
-  { name: 'Magic', length: 2, type: 'number' },
-  { name: 'MajorLinkerVersion', length: 1, type: 'number' },
-  { name: 'MinorLinkerVersion', length: 1, type: 'number' },
-  { name: 'SizeOfCode', length: 4, type: 'number' },
-  { name: 'SizeOfInitializedData', length: 4, type: 'number' },
-  { name: 'SizeOfUninitializedData', length: 4, type: 'number' },
-  { name: 'AddressOfEntryPoint', length: 4, type: 'number' },
-  { name: 'BaseOfCode', length: 4, type: 'number' },
-  { name: 'BaseOfData', length: 4, type: 'number' },
-  { name: 'ImageBase', length: 4, type: 'number' },
-  { name: 'SectionAlignment', length: 4, type: 'number' },
-  { name: 'FileAlignment', length: 4, type: 'number' },
-  { name: 'MajorOperatingSystemVersion', length: 2, type: 'number' },
-  { name: 'MinorOperatingSystemVersion', length: 2, type: 'number' },
-  { name: 'MajorImageVersion', length: 2, type: 'number' },
-  { name: 'MinorImageVersion', length: 2, type: 'number' },
-  { name: 'MajorSubsystemVersion', length: 2, type: 'number' },
-  { name: 'MinorSubsystemVersion', length: 2, type: 'number' },
-  { name: 'Win32VerrsionValue', length: 4, type: 'number' },
-  { name: 'SizeOfImage', length: 4, type: 'number' },
-  { name: 'SizeOfHeaders', length: 4, type: 'number' },
-  { name: 'CheckSum', length: 4, type: 'number' },
-  { name: 'Subsystem', length: 2, type: 'number' },
-  { name: 'DllCharacteristics', length: 2, type: 'number' },
-  { name: 'SizeOfStackReserve', length: 4, type: 'number' },
-  { name: 'SizeOfStackCommit', length: 4, type: 'number' },
-  { name: 'SizeOfHeapReserve', length: 4, type: 'number' },
-  { name: 'SizeOfHeapCommit', length: 4, type: 'number' },
-  { name: 'LoadeFlags', length: 4, type: 'number' },
-  { name: 'NumberOfRvaAndSizes', length: 4, type: 'number' },
+  { name: 'Magic', length: 2, type: uint16 },
+  { name: 'MajorLinkerVersion', length: 1, type: uint8 },
+  { name: 'MinorLinkerVersion', length: 1, type: uint8 },
+  { name: 'SizeOfCode', length: 4, type: uint32 },
+  { name: 'SizeOfInitializedData', length: 4, type: uint32 },
+  { name: 'SizeOfUninitializedData', length: 4, type: uint32 },
+  { name: 'AddressOfEntryPoint', length: 4, type: uint32 },
+  { name: 'BaseOfCode', length: 4, type: uint32 },
+  { name: 'BaseOfData', length: 4, type: uint32 },
+  { name: 'ImageBase', length: 4, type: uint32 },
+  { name: 'SectionAlignment', length: 4, type: uint32 },
+  { name: 'FileAlignment', length: 4, type: uint32 },
+  { name: 'MajorOperatingSystemVersion', length: 2, type: uint16 },
+  { name: 'MinorOperatingSystemVersion', length: 2, type: uint16 },
+  { name: 'MajorImageVersion', length: 2, type: uint16 },
+  { name: 'MinorImageVersion', length: 2, type: uint16 },
+  { name: 'MajorSubsystemVersion', length: 2, type: uint16 },
+  { name: 'MinorSubsystemVersion', length: 2, type: uint16 },
+  { name: 'Win32VerrsionValue', length: 4, type: uint32 },
+  { name: 'SizeOfImage', length: 4, type: uint32 },
+  { name: 'SizeOfHeaders', length: 4, type: uint32 },
+  { name: 'CheckSum', length: 4, type: uint32 },
+  { name: 'Subsystem', length: 2, type: uint16 },
+  { name: 'DllCharacteristics', length: 2, type: uint16 },
+  { name: 'SizeOfStackReserve', length: 4, type: uint32 },
+  { name: 'SizeOfStackCommit', length: 4, type: uint32 },
+  { name: 'SizeOfHeapReserve', length: 4, type: uint32 },
+  { name: 'SizeOfHeapCommit', length: 4, type: uint32 },
+  { name: 'LoadeFlags', length: 4, type: uint32 },
+  { name: 'NumberOfRvaAndSizes', length: 4, type: uint32 },
 ]
 
 const Pe = {
@@ -91,7 +89,20 @@ const Pe = {
       ntHeader,
       optionalHeader,
     }
-  }
+  },
+  async cli (argv) {
+    if (argv[2] === 'info') {
+      const bytes = await fs.readFile(argv[3])
+      console.log(Pe.info(bytes))
+    } else {
+      console.log(`
+usage: node index.js COMMAND PATH
+
+command:
+  info    show PE info
+`)
+    }
+  },
 }
 
 export default Pe
