@@ -1,3 +1,3 @@
-import Jpeg from '../examples/jpeg.js'
+import main from '../examples/elf.js'
 
-Jpeg.cli(process.argv)
+main.cli(process.argv)

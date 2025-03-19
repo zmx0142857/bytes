@@ -28,6 +28,9 @@ configs.i3dm = [
   ...configs.b3dm,
   { name: 'gltfFormat', length: 4, type: uint32 },
 ]
+configs.pnts = [
+  ...configs.b3dm,
+]
 
 const Cmpt = {
   /**
@@ -49,7 +52,7 @@ const Cmpt = {
     }
     return headers
   },
-  // 将 cmpt 拆分为 b3dm, i3dm
+  // 将 cmpt 拆分为 b3dm, i3dm, pnts
   async split (bytes, outputPath = '.') {
     const headers = Cmpt.info(bytes)
     let offset = 16
@@ -70,10 +73,11 @@ const Cmpt = {
     let offset = 16
     const progress = Progress()
     return Promise.all(headers.slice(1).map(async (header, i) => {
+      if (header.magic === 'pnts') return
       const filename = path.join(outputPath, `${i}.glb`)
       const fileContent = bytes.slice(
         offset
-        + (header.magic === 'b3dm' ? 28 : 32)
+        + (header.magic === 'i3dm' ? 32 : 28)
         + header.featureTableJSONByteLength
         + header.featureTableBinaryByteLength
         + header.batchTableJSONByteLength
@@ -88,7 +92,7 @@ const Cmpt = {
   },
   // 将指定目录中的 b3dm, i3dm 合成为一个 cmpt
   async make (dir = '.', outputPath = 'output.cmpt') {
-    const exts = ['b3dm', 'i3dm']
+    const exts = ['b3dm', 'i3dm', 'pnts']
     const files = (await fs.readdir(dir)).filter(file => exts.some(ext => file.endsWith('.' + ext))).sort()
     let byteLength = 16
     const buffers = []
@@ -103,7 +107,7 @@ const Cmpt = {
       byteLength,
       tilesLength: files.length,
     })
-    await fs.writeFile(outputPath, Bytes.join([headerBytes, ...buffers]))
+    await fs.writeFile(outputPath, Bytes.concat([headerBytes, ...buffers]))
   },
   async cli(argv) {
     if (argv[2] === 'info') {

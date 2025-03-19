@@ -89,17 +89,17 @@ const Glb = {
       chunkLength: jsonData.length,
       chunkType: 'JSON',
     })
-    const fileData = Bytes.join([
+    const fileData = Bytes.concat([
       jsonHead,
       jsonData,
-      ...buffers.map(buf => Bytes.join([buf.head, buf.data]))
+      ...buffers.map(buf => Bytes.concat([buf.head, buf.data]))
     ])
     const fileHead = Bytes.fromObj(glbConfig, {
       magic: 'glTF',
       version: 2,
       length: 12 + fileData.length,
     })
-    return fs.writeFile(outputPath, Bytes.join([fileHead, fileData]))
+    return fs.writeFile(outputPath, Bytes.concat([fileHead, fileData]))
   },
   async cli (argv) {
     if (argv[2] === 'info') {
