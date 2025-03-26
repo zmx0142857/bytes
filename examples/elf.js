@@ -12,6 +12,8 @@ const { str, uint16, uint32 } = Bytes.types
 // readelf -h a.out # 查看 elf 文件头
 // readelf -l # 查看 program header
 // readelf -S # 查看 section header
+
+// 文件头, 64 bytes
 const elfHeaderConfig = [
   { name: 'ident', length: 16, type: str }, // 16 字节魔数, 用来标识 elf 文件
   { name: 'type', length: 2, type: uint16 }, // 目标文件类型 1:可重定位文件, 2:可执行文件, 3:共享目标文件
@@ -58,18 +60,23 @@ const sectionTypeDict = {
   [0x6ffffffe]: 'VERNEED',
 }
 
+const programTypeDict = {
+  1: 'LOAD', // 可加载段
+  2: 'DYNAMIC', // 可动态链接段
+  3: 'INTERP', // 解释器
+  4: 'NOTE', // 注释
+  5: 'SHLIB', // 共享库
+  6: 'PHDR', // 程序头表
+  1685382480: 'GNU_EH_FRAME', // GNU 异常处理
+  1685382481: 'GNU_STACK', // GNU 栈
+  1685382482: 'GNU_RELRO', // GNU 重定位只读
+  1685382483: 'GNU_PROPERTY', // GNU 属性
+}
+
+// 64 bytes
 const sectionHeaderConfig = [
   { name: 'name', length: 4, type: uint32 },
-  {
-    name: 'type',
-    length: 4,
-    type: {
-      fromBytes(bytes) {
-        const value = Bytes.types.uint32.fromBytes(bytes)
-        return sectionTypeDict[value] || value
-      },
-    },
-  },
+  { name: 'type', length: 4, type: uint32, enum: sectionTypeDict },
   { name: 'flags', length: 4, type: uint32, n: 2 }, // 标志 2:可写, 4:可执行, 6:可读可写, 8:可读可执行
   { name: 'addr', length: 4, type: uint32, n: 2 },
   { name: 'offset', length: 4, type: uint32, n: 2 },
@@ -80,9 +87,9 @@ const sectionHeaderConfig = [
   { name: 'entsize', length: 4, type: uint32, n: 2 },
 ]
 
-// program header (segment header)
+// program header (segment header), 56 bytes
 const programHeaderConfig = [
-  { name: 'type', length: 4, type: uint32 }, // 类型 1:可加载段, 2:可动态链接段, 3:程序头表, 4:符号表, 5:字符串表
+  { name: 'type', length: 4, type: uint32, enum: programTypeDict },
   { name: 'flags', length: 4, type: uint32 }, // 标志 4:可读, 2:可写, 1:可执行
   { name: 'offset', length: 4, type: uint32, n: 2 }, // 段在文件中的偏移量
   { name: 'vaddr', length: 4, type: uint32, n: 2 }, // 段在内存中的虚拟地址
@@ -93,57 +100,40 @@ const programHeaderConfig = [
 ]
 
 const Elf = {
-  info (bytes) {
-    const res = {}
-    // elf header
-    const elfHeader = res.elfHeader = Bytes.toObj(elfHeaderConfig, bytes, 0)
-    // program header
-    let pOff = elfHeader.phoff[0]
-    if (pOff > 0) {
-      const config = [
-        {
-          name: 'segment',
-          length: elfHeader.phentsize,
-          type: {
-            fromBytes: (bytes) => Bytes.toObj(programHeaderConfig, bytes, 0),
-          },
-          n: elfHeader.phnum,
-        },
-      ]
-      res.programHeaders = Bytes.toObj(config, bytes, pOff).segment
-    }
-    // section header
-    let sOff = elfHeader.shoff[0]
-    if (sOff > 0) {
-      const config = [
-        {
-          name: 'section',
-          length: elfHeader.shentsize,
-          type: {
-            fromBytes: (bytes) => Bytes.toObj(sectionHeaderConfig, bytes, 0),
-          },
-          n: elfHeader.shnum,
-        },
-      ]
-      res.sectionHeaders = Bytes.toObj(config, bytes, sOff).section
-    }
-    // string table
+  // 从 string table 读取 section 名称
+  initSectionNames ({ elfHeader, sectionHeaders }, bytes) {
     const strTableIndex = elfHeader.shstrndx
     if (strTableIndex >= 0 && strTableIndex < elfHeader.shnum) {
-      const { offset, size } = res.sectionHeaders[strTableIndex]
-      const strTableRaw = bytes.slice(offset[0], offset[0] + size[0])
-      // res.strTable = String(strTableRaw).split('\0')
-      // 从 string table 读取 section 名称
-      res.sectionHeaders.forEach((section) => {
-        const buf = []
-        let index = section.name
-        let ch
-        while ((ch = strTableRaw[index++]) !== 0) {
-          buf.push(String.fromCharCode(ch))
-        }
-        section.name = buf.join('')
+      const { offset, size } = sectionHeaders[strTableIndex]
+      const strTable = bytes.slice(offset[0], offset[0] + size[0])
+      sectionHeaders.forEach((section) => {
+        // null-terminated string
+        let begin = section.name, end = begin
+        while (strTable[end] !== 0) end++
+        section.name = String.fromCharCode(...strTable.slice(begin, end))
       })
     }
+  },
+  info (bytes) {
+    const config = [
+      { name: 'elfHeader', type: elfHeaderConfig },
+      {
+        name: 'programHeaders',
+        offset: obj => obj.elfHeader.phoff[0],
+        length: obj => obj.elfHeader.phentsize,
+        type: programHeaderConfig,
+        n: obj => obj.elfHeader.phnum,
+      },
+      {
+        name: 'sectionHeaders',
+        offset: obj => obj.elfHeader.shoff[0],
+        length: obj => obj.elfHeader.shentsize,
+        type: sectionHeaderConfig,
+        n: obj => obj.elfHeader.shnum,
+      },
+    ]
+    const res = Bytes.toObj(config, bytes)
+    this.initSectionNames(res, bytes)
     return res
   },
   async cli (argv) {
