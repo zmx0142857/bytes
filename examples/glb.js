@@ -15,18 +15,7 @@ const glbChunkConfig = [
   {
     name: 'chunkType',
     length: 4,
-    type: str,
-    // type: {
-    //   fromBytes(bytes) {
-    //     const value = Bytes.toUint32(bytes)
-    //     if (value === 0x4E4F534A) return 'JSON'
-    //     if (value === 0x004E4942) return 'BIN'
-    //   },
-    //   toBytes(type) {
-    //     if (type === 'JSON') return Bytes.fromUint32(0x4E4F534A)
-    //     if (type === 'BIN') return Bytes.fromUint32(0x004E4942)
-    //   },
-    // },
+    type: str, // 'JSON' or 'BIN\x00'
   },
 ]
 
@@ -53,6 +42,7 @@ const Glb = {
       offset += chunkHeader.chunkLength
     }
     return res
+    // return res.buffers
   },
   async toGltf (bytes, outputPath = './output.gltf') {
     const info = Glb.info(bytes)
@@ -69,22 +59,24 @@ const Glb = {
     })
     return fs.writeFile(outputPath, JSON.stringify(info, null, 2) + '\n')
   },
-  async fromGltf (str, outputPath = './output.glb') {
-    const info = JSON.parse(str)
+  async toGlb (info, outputPath = './output.glb') {
     const buffers = info.buffers.map(buf => {
-      const data = Bytes.fromBase64(buf.uri.split(',')[1])
+      const data = buf.data || Bytes.fromBase64(buf.uri.split(',')[1])
       delete buf.uri
+      delete buf.data
       return {
         name: buf.name,
         byteLength: buf.byteLength,
         data,
         head: Bytes.fromObj(glbChunkConfig, {
           chunkLength: buf.byteLength,
-          chunkType: 'BIN',
+          chunkType: 'BIN\0',
         }),
       }
     })
-    const jsonData = Bytes.fromStr(JSON.stringify(info))
+    let str = JSON.stringify(info)
+    if (str.length % 4) str += ' '.repeat(4 - str.length % 4) // align to 4 bytes
+    const jsonData = Bytes.fromStr(str)
     const jsonHead = Bytes.fromObj(glbChunkConfig, {
       chunkLength: jsonData.length,
       chunkType: 'JSON',
@@ -101,24 +93,76 @@ const Glb = {
     })
     return fs.writeFile(outputPath, Bytes.concat([fileHead, fileData]))
   },
+  // 合并重复的 buffers 和 bufferViews
+  // TODO: 合并重复的 accessors 和 meshes
+  async simp (bytes, outputPath = './output.glb') {
+    const info = Glb.info(bytes)
+    const res = []
+    const map = []
+    let offset = 0
+    info.bufferViews.forEach(bufferView => {
+      const { buffer, byteOffset, byteLength, target, byteStride } = bufferView
+      const data = info.buffers[buffer].data.slice(byteOffset, byteOffset + byteLength)
+      let index = res.findIndex(v => {
+        const flag = v.byteLength === byteLength && v.target === target && v.byteStride === byteStride
+        if (!flag) return false
+        for (let i = 0; i < byteLength; i++) {
+          if (data[i] !== v.data[i]) return false
+        }
+        return true
+      })
+      if (index === -1) {
+        res.push({
+          ...bufferView,
+          buffer: 0,
+          byteOffset: offset,
+          data,
+        })
+        offset += byteLength
+        index = res.length - 1
+      }
+      map.push(index)
+    })
+    info.images?.forEach(image => image.bufferView = map[image.bufferView])
+    info.accessors?.forEach(acc => acc.bufferView = map[acc.bufferView])
+    // TODO: 其它字段是否用到 bufferView?
+
+    console.log('bufferViews:', info.bufferViews.length, '->', res.length)
+    const data = Bytes.concat(res.map(v => v.data))
+    info.buffers = [
+      { data, byteLength: data.length },
+    ]
+    info.bufferViews = res.map(v => {
+      delete v.data
+      return v
+    })
+    // const imageView = info.bufferViews[274]
+    // const image = data.slice(imageView.byteOffset, imageView.byteOffset + imageView.byteLength)
+    // fs.writeFile('./image.png', image)
+    return Glb.toGlb(info, outputPath)
+  },
   async cli (argv) {
     if (argv[2] === 'info') {
       const bytes = await fs.readFile(argv[3])
       console.dir(Glb.info(bytes), { depth: null })
-    } else if (argv[2] === 'toGltf') {
+    } else if (argv[2] === 'gltf') {
       const bytes = await fs.readFile(argv[3])
       Glb.toGltf(bytes, argv[4])
-    } else if (argv[2] === 'fromGltf') {
+    } else if (argv[2] === 'glb') {
       const bytes = await fs.readFile(argv[3], 'utf-8')
-      Glb.fromGltf(bytes, argv[4])
+      Glb.toGlb(JSON.parse(bytes), argv[4])
+    } else if (argv[2] === 'simp') {
+      const bytes = await fs.readFile(argv[3])
+      Glb.simp(bytes, argv[4])
     } else {
       console.log(`
 usage: node index.js COMMAND PATH
 
 command:
   info      show glb info
-  toGltf    convert glb to gltf
-  fromGltf  convert gltf to glb
+  gltf      convert glb to gltf
+  glb       convert gltf to glb
+  simp      simplify glb
 `)
     }
   }

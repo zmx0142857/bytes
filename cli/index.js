@@ -1,3 +1,3 @@
-import main from '../examples/bmp.js'
+import main from '../examples/glb.js'
 
 main.cli(process.argv)

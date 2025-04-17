@@ -44,7 +44,7 @@ const Cmpt = {
     if (mainHeader.magic === 'cmpt') {
       let offset = 16
       for (let i = 0; i < mainHeader.tilesLength; i++) {
-        const config = configs[Bytes.magic(bytes, offset, offset + 4)]
+        const config = configs[Bytes.magic(bytes, offset, 4)]
         const header = Bytes.toObj(config, bytes, offset)
         headers.push(header)
         offset += header.byteLength
@@ -67,28 +67,59 @@ const Cmpt = {
       return res
     }))
   },
+  async b3dmOrI3dmToGlb ({
+    header,
+    bytes,
+    offset = 0,
+    inputPath = '',
+    outputPath = '',
+    progress = () => {},
+  }) {
+    if (!['b3dm', 'i3dm'].includes(header.magic)) {
+      return console.warn('not a b3dm/i3dm file: ', inputPath)
+    }
+    const fileContent = bytes.slice(
+      offset
+      + (header.magic === 'i3dm' ? 32 : 28)
+      + header.featureTableJSONByteLength
+      + header.featureTableBinaryByteLength
+      + header.batchTableJSONByteLength
+      + header.batchTableBinaryByteLength,
+      offset + header.byteLength
+    )
+    offset += header.byteLength
+    const res = await fs.writeFile(outputPath || `${inputPath || 0}.glb`, fileContent)
+    progress()
+    return res
+  },
   // 提取 cmpt 中的所有 glb 文件
-  async glb (bytes, outputPath = '.') {
-    const headers = Cmpt.info(bytes)
-    let offset = 16
-    const progress = Progress()
-    return Promise.all(headers.slice(1).map(async (header, i) => {
-      if (header.magic === 'pnts') return
-      const filename = path.join(outputPath, `${i}.glb`)
-      const fileContent = bytes.slice(
-        offset
-        + (header.magic === 'i3dm' ? 32 : 28)
-        + header.featureTableJSONByteLength
-        + header.featureTableBinaryByteLength
-        + header.batchTableJSONByteLength
-        + header.batchTableBinaryByteLength,
-        offset + header.byteLength
-      )
-      offset += header.byteLength
-      const res = await fs.writeFile(filename, fileContent)
-      progress(i / headers.length)
-      return res
-    }))
+  async glb (bytes, inputPath = '', outputPath = '') {
+    const magic = Bytes.magic(bytes, 0, 4)
+    if (magic === 'cmpt') { // cmpt to glb
+      const headers = Cmpt.info(bytes)
+      let offset = 16
+      const progress = Progress()
+      return Promise.all(headers.slice(1).map(async (header, i) => {
+        return Cmpt.b3dmOrI3dmToGlb({
+          header,
+          bytes,
+          offset,
+          inputPath,
+          outputPath: path.join(outputPath, `${i}.glb`),
+          progress: () => progress(i / headers.length)
+        })
+      }))
+    } else if (magic === 'b3dm' || magic === 'i3dm') { // b3dm/i3dm to glb
+      const header = Bytes.toObj(configs[magic], bytes, 0)
+      return Cmpt.b3dmOrI3dmToGlb({
+        header,
+        bytes,
+        inputPath,
+        outputPath,
+      })
+    } else {
+      console.warn('not a cmpt/b3dm/i3dm file: ', inputPath)
+    }
   },
   // 将指定目录中的 b3dm, i3dm 合成为一个 cmpt
   async make (dir = '.', outputPath = 'output.cmpt') {
@@ -119,7 +150,7 @@ const Cmpt = {
       await Cmpt.split(bytes, argv[4])
     } else if (argv[2] === 'glb') {
       const bytes = await fs.readFile(argv[3])
-      await Cmpt.glb(bytes, argv[4])
+      await Cmpt.glb(bytes, argv[3], argv[4])
     } else if (argv[2] === 'make') {
       await Cmpt.make(argv[3], argv[4])
     } else {
@@ -128,9 +159,9 @@ usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
 
 command:
   info    show information of the cmpt file
-  split   split cmpt file into b3dm & i3dm files
-  make    make cmpt file from b3dm & i3dm files
-  glb     extract glb files from cmpt
+  split   split cmpt file into b3dm/i3dm files
+  make    make cmpt file from b3dm/i3dm files
+  glb     extract glb from cmpt/b3dm/i3dm files
 `)
     }
   },
