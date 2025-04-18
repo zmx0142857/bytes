@@ -19,6 +19,25 @@ const glbChunkConfig = [
   },
 ]
 
+const accessorTypes = {
+  SCALAR: 1,
+  VEC2: 2,
+  VEC3: 3,
+  VEC4: 4,
+  MAT2: 4,
+  MAT3: 9,
+  MAT4: 16,
+}
+
+const accessorComponentTypes = {
+  5120: { name: 'int8', length: 1 },
+  5121: { name: 'uint8', length: 1 },
+  5122: { name: 'int16', length: 2 },
+  5123: { name: 'uint16', length: 2 },
+  5125: { name: 'uint32', length: 4 },
+  5126: { name: 'float32', length: 4 },
+}
+
 const Glb = {
   info (bytes) {
     let res = {}, offset = 0
@@ -42,7 +61,6 @@ const Glb = {
       offset += chunkHeader.chunkLength
     }
     return res
-    // return res.buffers
   },
   async toGltf (bytes, outputPath = './output.gltf') {
     const info = Glb.info(bytes)
@@ -74,9 +92,11 @@ const Glb = {
         }),
       }
     })
-    let str = JSON.stringify(info)
-    if (str.length % 4) str += ' '.repeat(4 - str.length % 4) // align to 4 bytes
-    const jsonData = Bytes.fromStr(str)
+    let jsonData = Bytes.fromStr(JSON.stringify(info))
+    // align to 4 bytes
+    if (jsonData.length % 4) {
+      jsonData = Bytes.concat([jsonData, new Uint8Array(4 - jsonData.length % 4).fill(32)]) // fill with space
+    }
     const jsonHead = Bytes.fromObj(glbChunkConfig, {
       chunkLength: jsonData.length,
       chunkType: 'JSON',
@@ -111,20 +131,43 @@ const Glb = {
         }
         return true
       })
+
       if (index === -1) {
+        // align to 4 bytes
+        let len = byteLength
+        let buf = data
+        if (len % 4) {
+          const rest = 4 - len % 4
+          buf = Bytes.concat([data, new Uint8Array(rest)])
+          len += rest
+        }
+
         res.push({
           ...bufferView,
           buffer: 0,
           byteOffset: offset,
-          data,
+          data: buf,
         })
-        offset += byteLength
+        offset += len
         index = res.length - 1
       }
       map.push(index)
     })
-    info.images?.forEach(image => image.bufferView = map[image.bufferView])
-    info.accessors?.forEach(acc => acc.bufferView = map[acc.bufferView])
+
+    info.images?.forEach(v => v.bufferView = map[v.bufferView])
+    info.accessors?.forEach(v => {
+      const i = v.bufferView = map[v.bufferView]
+      const bufferView = res[i]
+      // 当多个 accessor 共用一个 bufferView 时, 必须指定 byteStride
+      if (bufferView.byteStride === undefined) {
+        const { type, componentType } = v
+        const stride = bufferView.byteStride = accessorTypes[type] * accessorComponentTypes[componentType]?.length || 0
+        if (stride === 0 || stride % 4) {
+          console.warn(`invalid bufferViews[${i}].byteStride:`, stride)
+          delete bufferView.byteStride
+        }
+      }
+    })
     // TODO: 其它字段是否用到 bufferView?
 
     console.log('bufferViews:', info.bufferViews.length, '->', res.length)
@@ -136,10 +179,18 @@ const Glb = {
       delete v.data
       return v
     })
-    // const imageView = info.bufferViews[274]
-    // const image = data.slice(imageView.byteOffset, imageView.byteOffset + imageView.byteLength)
-    // fs.writeFile('./image.png', image)
     return Glb.toGlb(info, outputPath)
+  },
+  async image (bytes, outputPath = '.') {
+    const info = Glb.info(bytes)
+    await Promise.all(info.images?.map(async image => {
+      const { bufferView, mimeType, name } = image
+      const { buffer, byteOffset, byteLength } = info.bufferViews[bufferView]
+      const imageBuffer = info.buffers[buffer].data.slice(byteOffset, byteOffset + byteLength)
+      const filename = name + '.' + (mimeType.split('/')[1] || 'png')
+      fs.writeFile(outputPath + '/' + filename, imageBuffer)
+    }))
+    console.log(`extracted ${info.images?.length || 0} image(s)`)
   },
   async cli (argv) {
     if (argv[2] === 'info') {
@@ -154,6 +205,9 @@ const Glb = {
     } else if (argv[2] === 'simp') {
       const bytes = await fs.readFile(argv[3])
       Glb.simp(bytes, argv[4])
+    } else if (argv[2] === 'image') {
+      const bytes = await fs.readFile(argv[3])
+      Glb.image(bytes, argv[4])
     } else {
       console.log(`
 usage: node index.js COMMAND PATH
@@ -163,6 +217,7 @@ command:
   gltf      convert glb to gltf
   glb       convert gltf to glb
   simp      simplify glb
+  image     extract images from glb
 `)
     }
   }
