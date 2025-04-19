@@ -167,6 +167,12 @@ const Glb = {
           delete bufferView.byteStride
         }
       }
+      // sparse accessors
+      if (v.sparse) {
+        const { indices, values } = v.sparse
+        indices.bufferView = map[indices.bufferView]
+        values.bufferView = map[values.bufferView]
+      }
     })
     // TODO: 其它字段是否用到 bufferView?
 
@@ -192,6 +198,15 @@ const Glb = {
     }))
     console.log(`extracted ${info.images?.length || 0} image(s)`)
   },
+  async metalness (bytes, outputPath = '.', value = 0) {
+    const info = Glb.info(bytes)
+    info.materials?.forEach(m => {
+      if (m.pbrMetallicRoughness) {
+        m.pbrMetallicRoughness.metallicFactor = value
+      }
+    })
+    return Glb.toGlb(info, outputPath)
+  },
   async cli (argv) {
     if (argv[2] === 'info') {
       const bytes = await fs.readFile(argv[3])
@@ -208,16 +223,21 @@ const Glb = {
     } else if (argv[2] === 'image') {
       const bytes = await fs.readFile(argv[3])
       Glb.image(bytes, argv[4])
+    } else if (argv[2]?.startsWith('metalness')) {
+      const bytes = await fs.readFile(argv[3])
+      const value = parseFloat(argv[2].split('=')[1]) || 0
+      Glb.metalness(bytes, argv[4], value)
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
 
 command:
-  info      show glb info
-  gltf      convert glb to gltf
-  glb       convert gltf to glb
-  simp      simplify glb
-  image     extract images from glb
+  info        show glb info
+  gltf        convert glb to gltf
+  glb         convert gltf to glb
+  simp        simplify glb
+  image       extract images from glb
+  metalness=x change material metalness to x
 `)
     }
   }

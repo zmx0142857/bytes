@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "baseUrl": "."
+  },
+  "include": [
+    "cli/*",
+    "examples/*",
+    "lib/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
