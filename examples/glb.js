@@ -1,4 +1,4 @@
-import fs from 'fs/promises'
+import fs from 'fs'
 import Bytes from '../lib/bytes.js'
 
 const { str, uint32 } = Bytes.types
@@ -75,7 +75,7 @@ const Glb = {
       })
       return mesh
     })
-    return fs.writeFile(outputPath, JSON.stringify(info, null, 2) + '\n')
+    return fs.promises.writeFile(outputPath, JSON.stringify(info, null, 2) + '\n')
   },
   async toGlb (info, outputPath = './output.glb') {
     const buffers = info.buffers.map(buf => {
@@ -111,12 +111,11 @@ const Glb = {
       version: 2,
       length: 12 + fileData.length,
     })
-    return fs.writeFile(outputPath, Bytes.concat([fileHead, fileData]))
+    return fs.promises.writeFile(outputPath, Bytes.concat([fileHead, fileData]))
   },
   // 合并重复的 buffers 和 bufferViews
   // TODO: 合并重复的 accessors 和 meshes
-  async simp (bytes, outputPath = './output.glb') {
-    const info = Glb.info(bytes)
+  async simp (info, outputPath = './output.glb') {
     const res = []
     const map = []
     let offset = 0
@@ -163,7 +162,7 @@ const Glb = {
         const { type, componentType } = v
         const stride = bufferView.byteStride = accessorTypes[type] * accessorComponentTypes[componentType]?.length || 0
         if (stride === 0 || stride % 4) {
-          console.warn(`invalid bufferViews[${i}].byteStride:`, stride)
+          // console.warn(`invalid bufferViews[${i}].byteStride:`, stride)
           delete bufferView.byteStride
         }
       }
@@ -194,9 +193,33 @@ const Glb = {
       const { buffer, byteOffset, byteLength } = info.bufferViews[bufferView]
       const imageBuffer = info.buffers[buffer].data.slice(byteOffset, byteOffset + byteLength)
       const filename = name + '.' + (mimeType.split('/')[1] || 'png')
-      fs.writeFile(outputPath + '/' + filename, imageBuffer)
+      fs.promises.writeFile(outputPath + '/' + filename, imageBuffer)
     }))
     console.log(`extracted ${info.images?.length || 0} image(s)`)
+  },
+  async changeImage (bytes, outputPath = '.', imageDir = '.', imageNames = []) {
+    const info = Glb.info(bytes)
+    let count = 0
+    await Promise.all(imageNames.map(async imageName => {
+      const index = imageName.lastIndexOf('.')
+      const name = imageName.slice(0, index === -1 ? undefined : index)
+      const image = info.images?.find(v => v.name === name)
+      if (image) {
+        ++count
+        const bufferView = info.bufferViews[image.bufferView]
+        const buffer = info.buffers[bufferView.buffer]
+        const imageBuf = await fs.promises.readFile(imageDir + '/' + imageName)
+        console.log(`${imageName}: ${bufferView.byteLength} -> ${imageBuf.length}`)
+        bufferView.byteLength = imageBuf.length
+        for (let i = 0; i < imageBuf.length; i++) {
+          buffer.data[bufferView.byteOffset + i] = imageBuf[i]
+        }
+      }
+    }))
+    console.log(`changed ${count} image(s)`)
+    if (count > 0) {
+      return Glb.simp(info, outputPath)
+    }
   },
   async metalness (bytes, outputPath = '.', value = 0) {
     const info = Glb.info(bytes)
@@ -209,22 +232,38 @@ const Glb = {
   },
   async cli (argv) {
     if (argv[2] === 'info') {
-      const bytes = await fs.readFile(argv[3])
+      const bytes = await fs.promises.readFile(argv[3])
       console.dir(Glb.info(bytes), { depth: null })
     } else if (argv[2] === 'gltf') {
-      const bytes = await fs.readFile(argv[3])
+      const bytes = await fs.promises.readFile(argv[3])
       Glb.toGltf(bytes, argv[4])
     } else if (argv[2] === 'glb') {
-      const bytes = await fs.readFile(argv[3], 'utf-8')
+      const bytes = await fs.promises.readFile(argv[3], 'utf-8')
       Glb.toGlb(JSON.parse(bytes), argv[4])
     } else if (argv[2] === 'simp') {
-      const bytes = await fs.readFile(argv[3])
-      Glb.simp(bytes, argv[4])
+      const bytes = await fs.promises.readFile(argv[3])
+      const info = Glb.info(bytes)
+      Glb.simp(info, argv[4])
     } else if (argv[2] === 'image') {
-      const bytes = await fs.readFile(argv[3])
+      const bytes = await fs.promises.readFile(argv[3])
       Glb.image(bytes, argv[4])
+    } else if (argv[2]?.startsWith('image=')) {
+      const dir = argv[2].split('=')[1]
+      if (!dir) return console.error('image=dir is required')
+      const isDir = fs.statSync(dir).isDirectory()
+      let imageDir = dir
+      let imageNames = []
+      if (isDir) {
+        imageNames = fs.readdirSync(dir)
+      } else {
+        const index = dir.lastIndexOf('/')
+        imageNames = [dir.slice(index + 1)]
+        imageDir = dir.slice(0, index === -1 ? 0 : index)
+      }
+      const bytes = await fs.promises.readFile(argv[3])
+      Glb.changeImage(bytes, argv[4], imageDir, imageNames)
     } else if (argv[2]?.startsWith('metalness')) {
-      const bytes = await fs.readFile(argv[3])
+      const bytes = await fs.promises.readFile(argv[3])
       const value = parseFloat(argv[2].split('=')[1]) || 0
       Glb.metalness(bytes, argv[4], value)
     } else {
@@ -237,6 +276,7 @@ command:
   glb         convert gltf to glb
   simp        simplify glb
   image       extract images from glb
+  image=dir   change images in glb
   metalness=x change material metalness to x
 `)
     }
