@@ -161,7 +161,7 @@ const Glb = {
       if (bufferView.byteStride === undefined) {
         const { type, componentType } = v
         const stride = bufferView.byteStride = accessorTypes[type] * accessorComponentTypes[componentType]?.length || 0
-        if (stride === 0 || stride % 4) {
+        if (stride === 0 || stride % 4 || type === 'SCALAR') {
           // console.warn(`invalid bufferViews[${i}].byteStride:`, stride)
           delete bufferView.byteStride
         }
