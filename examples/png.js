@@ -1,6 +1,8 @@
 import fs from 'fs'
 import Bytes from '../lib/bytes.js'
 
+// https://libpng.org/pub/png/spec/iso/index-object.html
+// https://www.cnblogs.com/senior-engineer/p/9548347.html
 const { str, uint8, uint32_big, raw } = Bytes.types
 
 const colorTypeEnum = {
@@ -69,7 +71,7 @@ const chunkConfig = [
       },
     },
   },
-  { name: 'crc', length: 4, type: raw },
+  { name: 'crc', length: 4, type: raw }, // crc32(data=type+data, poly=04c11db7, in=ffffffff, out=ffffffff, refin=true, refout=true)
 ]
 
 const Png = {

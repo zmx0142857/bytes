@@ -1,6 +1,7 @@
 export { default as bin } from './hex.js'
 export { default as bmp } from './bmp.js'
 export { default as cmpt } from './cmpt.js'
+export { default as crc } from './crc.js'
 export { default as elf } from './elf.js'
 export { default as gif } from './gif.js'
 export { default as glb } from './glb.js'
