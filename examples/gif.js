@@ -124,12 +124,12 @@ const Gif = {
     return Bytes.toObj(config, bytes, 0)
   },
   async cli (argv) {
-    if (argv[2] === 'info' && argv[3]) {
-      const bytes = await fs.promises.readFile(argv[3])
+    if (argv[0] === 'info' && argv[1]) {
+      const bytes = await fs.promises.readFile(argv[1])
       console.dir(Gif.info(bytes), { depth: 10 })
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: bytes gif COMMAND FIN
 
 command:
   info  show gif info

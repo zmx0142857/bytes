@@ -91,12 +91,12 @@ const Pe = {
     }
   },
   async cli (argv) {
-    if (argv[2] === 'info') {
-      const bytes = await fs.readFile(argv[3])
+    if (argv[0] === 'info') {
+      const bytes = await fs.readFile(argv[1])
       console.log(Pe.info(bytes))
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: bytes pe COMMAND FIN
 
 command:
   info    show PE info

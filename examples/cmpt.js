@@ -141,21 +141,21 @@ const Cmpt = {
     await fs.writeFile(outputPath, Bytes.concat([headerBytes, ...buffers]))
   },
   async cli(argv) {
-    if (argv[2] === 'info') {
-      const bytes = await fs.readFile(argv[3])
+    if (argv[0] === 'info') {
+      const bytes = await fs.readFile(argv[1])
       const headers = Cmpt.info(bytes)
       headers.forEach(header => console.log(header))
-    } else if (argv[2] === 'split') {
-      const bytes = await fs.readFile(argv[3])
-      await Cmpt.split(bytes, argv[4])
-    } else if (argv[2] === 'glb') {
-      const bytes = await fs.readFile(argv[3])
-      await Cmpt.glb(bytes, argv[3], argv[4])
-    } else if (argv[2] === 'make') {
-      await Cmpt.make(argv[3], argv[4])
+    } else if (argv[0] === 'split') {
+      const bytes = await fs.readFile(argv[1])
+      await Cmpt.split(bytes, argv[2])
+    } else if (argv[0] === 'glb') {
+      const bytes = await fs.readFile(argv[1])
+      await Cmpt.glb(bytes, argv[1], argv[2])
+    } else if (argv[0] === 'make') {
+      await Cmpt.make(argv[1], argv[2])
     } else {
       console.log(`
-usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
+usage: bytes cmpt COMMAND FIN [FOUT]
 
 command:
   info    show information of the cmpt file

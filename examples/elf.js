@@ -137,12 +137,12 @@ const Elf = {
     return res
   },
   async cli (argv) {
-    if (argv[2] === 'info') {
-      const bytes = await fs.readFile(argv[3])
+    if (argv[0] === 'info') {
+      const bytes = await fs.readFile(argv[1])
       console.dir(Elf.info(bytes), { depth: 10 })
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: bytes elf COMMAND FIN
 
 command:
   info  show elf info

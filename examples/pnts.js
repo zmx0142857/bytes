@@ -148,15 +148,15 @@ const Pnts = {
     return this.outputPnts({ points, box })
   },
   async cli(argv) {
-    if (argv.length >= 5 && argv[2] === 'fromTxt') {
-      const buffer = await Pnts.fromTxt(argv[3])
-      await fs.promises.writeFile(argv[4], buffer)
-    } else if (argv.length >= 5 && argv[2] === 'fromObj') {
-      const buffer = await Pnts.fromObj(argv[3])
-      await fs.promises.writeFile(argv[4], buffer)
+    if (argv.length >= 3 && argv[0] === 'fromTxt') {
+      const buffer = await Pnts.fromTxt(argv[1])
+      await fs.promises.writeFile(argv[2], buffer)
+    } else if (argv.length >= 3 && argv[0] === 'fromObj') {
+      const buffer = await Pnts.fromObj(argv[1])
+      await fs.promises.writeFile(argv[2], buffer)
     } else {
       console.log(`
-usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
+usage: bytes pnts COMMAND FIN [FOUT]
 
 command:
   fromTxt   convert points.txt to points.pnts

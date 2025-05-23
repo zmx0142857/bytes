@@ -53,12 +53,12 @@ const Bmp = {
     return Bytes.toObj(config, bytes, 0)
   },
   async cli (argv) {
-    if (argv[2] === 'info' && argv[3]) {
-      const bytes = await fs.readFile(argv[3])
+    if (argv[0] === 'info' && argv[1]) {
+      const bytes = await fs.readFile(argv[1])
       console.dir(Bmp.info(bytes), { depth: 10 })
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: bytes bmp COMMAND FIN
 
 command:
   info  show bmp info

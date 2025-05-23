@@ -312,12 +312,12 @@ const Jpeg = {
     return res
   },
   async cli (argv) {
-    if (argv[2] === 'info') {
-      const bytes = await fs.readFile(argv[3])
+    if (argv[0] === 'info') {
+      const bytes = await fs.readFile(argv[1])
       console.dir(this.info(bytes), { depth: null })
     } else {
       console.log(`
-usage: node index.js COMMAND PATH
+usage: bytes jpeg COMMAND FIN
 
 command:
   info      show jpeg info

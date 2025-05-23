@@ -231,24 +231,24 @@ const Glb = {
     return Glb.toGlb(info, outputPath)
   },
   async cli (argv) {
-    if (argv[2] === 'info') {
-      const bytes = await fs.promises.readFile(argv[3])
+    if (argv[0] === 'info') {
+      const bytes = await fs.promises.readFile(argv[1])
       console.dir(Glb.info(bytes), { depth: null })
-    } else if (argv[2] === 'gltf') {
-      const bytes = await fs.promises.readFile(argv[3])
-      Glb.toGltf(bytes, argv[4])
-    } else if (argv[2] === 'glb') {
-      const bytes = await fs.promises.readFile(argv[3], 'utf-8')
-      Glb.toGlb(JSON.parse(bytes), argv[4])
-    } else if (argv[2] === 'simp') {
-      const bytes = await fs.promises.readFile(argv[3])
+    } else if (argv[0] === 'gltf') {
+      const bytes = await fs.promises.readFile(argv[1])
+      Glb.toGltf(bytes, argv[2])
+    } else if (argv[0] === 'glb') {
+      const bytes = await fs.promises.readFile(argv[1], 'utf-8')
+      Glb.toGlb(JSON.parse(bytes), argv[2])
+    } else if (argv[0] === 'simp') {
+      const bytes = await fs.promises.readFile(argv[1])
       const info = Glb.info(bytes)
-      Glb.simp(info, argv[4])
-    } else if (argv[2] === 'image') {
-      const bytes = await fs.promises.readFile(argv[3])
-      Glb.image(bytes, argv[4])
-    } else if (argv[2]?.startsWith('image=')) {
-      const dir = argv[2].split('=')[1]
+      Glb.simp(info, argv[2])
+    } else if (argv[0] === 'image') {
+      const bytes = await fs.promises.readFile(argv[1])
+      Glb.image(bytes, argv[2])
+    } else if (argv[0]?.startsWith('image=')) {
+      const dir = argv[0].split('=')[1]
       if (!dir) return console.error('image=dir is required')
       const isDir = fs.statSync(dir).isDirectory()
       let imageDir = dir
@@ -260,15 +260,15 @@ const Glb = {
         imageNames = [dir.slice(index + 1)]
         imageDir = dir.slice(0, index === -1 ? 0 : index)
       }
-      const bytes = await fs.promises.readFile(argv[3])
-      Glb.changeImage(bytes, argv[4], imageDir, imageNames)
-    } else if (argv[2]?.startsWith('metalness')) {
-      const bytes = await fs.promises.readFile(argv[3])
-      const value = parseFloat(argv[2].split('=')[1]) || 0
-      Glb.metalness(bytes, argv[4], value)
+      const bytes = await fs.promises.readFile(argv[1])
+      Glb.changeImage(bytes, argv[2], imageDir, imageNames)
+    } else if (argv[0]?.startsWith('metalness')) {
+      const bytes = await fs.promises.readFile(argv[1])
+      const value = parseFloat(argv[0].split('=')[1]) || 0
+      Glb.metalness(bytes, argv[2], value)
     } else {
       console.log(`
-usage: node index.js COMMAND INPUT_PATH [OUTPUT_PATH]
+usage: bytes glb COMMAND FIN [FOUT]
 
 command:
   info        show glb info
