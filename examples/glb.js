@@ -230,6 +230,11 @@ const Glb = {
     })
     return Glb.toGlb(info, outputPath)
   },
+  async extras (bytes, outputPath = '.', value) {
+    const info = Glb.info(bytes)
+    info.asset.extras = value
+    return Glb.toGlb(info, outputPath)
+  },
   async cli (argv) {
     if (argv[0] === 'info') {
       const bytes = await fs.promises.readFile(argv[1])
@@ -266,6 +271,11 @@ const Glb = {
       const bytes = await fs.promises.readFile(argv[1])
       const value = parseFloat(argv[0].split('=')[1]) || 0
       Glb.metalness(bytes, argv[2], value)
+    } else if (argv[0]?.startsWith('extras')) {
+      const bytes = await fs.promises.readFile(argv[1])
+      const value = JSON.parse(argv[0].split('=')[1])
+      if (!value) return console.error('extras=value is invalid')
+      Glb.extras(bytes, argv[2], value)
     } else {
       console.log(`
 usage: bytes glb COMMAND FIN [FOUT]
@@ -278,6 +288,7 @@ command:
   image       extract images from glb
   image=dir   change images in glb
   metalness=x change material metalness to x
+  extras=x    change asset.extras to x
 `)
     }
   }
