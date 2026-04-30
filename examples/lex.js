@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { exec } from 'child_process'
+import { execSync } from 'child_process'
 import Bytes from '../lib/bytes.js'
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const { str, uint8, uint16, uint32, raw } = Bytes.types
 const utf16le = {
   fromBytes (bytes) {
@@ -146,22 +147,43 @@ const Lex = {
     ])
 
     if (overwrite) {
-      // TODO: copy 失败, 文件被占用
-      exec('net stop "TabletInputService"')
-      exec('taskkill /f /im ctfmon.exe')
-      exec('taskkill /f /im ChsIME.exe')
+      return
+      // FIXME: 文件被占用, 拷贝失败
+      const regPath = 'HKEY_CURRENT_USER\\Software\\Microsoft\\CTF\\TIP\\{6A498709-E00B-4C45-A018-8F9E4081AE40}\\LanguageProfile\\0x00000804\\{82590C13-F4DD-44F4-BA1D-8667246FDF8E}'
+      try {
+        execSync(`reg add "${regPath}" /v Enable /t REG_DWORD /d 0 /f`)
+        execSync('sc config "TabletInputService" start= disabled')
+        execSync('net stop "TabletInputService"')
+        execSync('schtasks /End /TN "\\Microsoft\\Windows\\TextServicesFramework\\MsCtfMonitor"')
+        execSync('taskkill /f /im ctfmon.exe')
+        execSync('taskkill /f /im ChsIME.exe')
+        await sleep(2000)
 
-      const systemRoot = path.resolve(process.env['SystemRoot'])
-      const userProfile = path.resolve(process.env['USERPROFILE'])
-      console.log({ systemRoot, userProfile })
-      await Promise.all([
-        fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubi.lex`),
-        fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubiNew.lex`),
-        fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv1.lex`),
-        fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv2.lex`),
-      ])
-
-      exec('net start "TabletInputService"')
+        const systemRoot = path.resolve(process.env['SystemRoot'])
+        const userProfile = path.resolve(process.env['USERPROFILE'])
+        console.log({ systemRoot, userProfile })
+        await Promise.all([
+          fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubi.lex`),
+          fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubiNew.lex`),
+          fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv1.lex`),
+          fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv2.lex`),
+        ])
+        console.log('拷贝成功')
+      } catch (err) {
+        console.error('拷贝失败')
+        console.error(err)
+      } finally {
+        try {
+          execSync('sc config "TabletInputService" start= manual')
+          execSync('net start "TabletInputService"')
+          execSync('schtasks /Run /TN "\\Microsoft\\Windows\\TextServicesFramework\\MsCtfMonitor"')
+          await sleep(2000)
+          execSync(`reg add "${regPath}" /v Enable /t REG_DWORD /d 1 /f`)
+        } catch (err) {
+          console.error('服务重启失败')
+          console.error(err)
+        }
+      }
     }
   },
   // 生成主码表
