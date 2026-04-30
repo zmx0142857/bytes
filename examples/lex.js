@@ -141,49 +141,23 @@ const Lex = {
       }
     }
 
+    const dir = process.argv[1].replaceAll('\\', '/').replace('cli/index.js', 'examples/')
     await Promise.all([
-      Lex.genMain(normalEntries, { filename: 'ChsWubi.lex' }),
-      Lex.genUser(userEntries, { filename: 'ChsWubiEUDPv1.lex' }),
+      Lex.genMain(normalEntries, { filename: dir + 'ChsWubi.lex' }),
+      Lex.genUser(userEntries, { filename: dir + 'ChsWubiEUDPv1.lex' }),
     ])
 
     if (overwrite) {
-      return
-      // FIXME: 文件被占用, 拷贝失败
-      const regPath = 'HKEY_CURRENT_USER\\Software\\Microsoft\\CTF\\TIP\\{6A498709-E00B-4C45-A018-8F9E4081AE40}\\LanguageProfile\\0x00000804\\{82590C13-F4DD-44F4-BA1D-8667246FDF8E}'
-      try {
-        execSync(`reg add "${regPath}" /v Enable /t REG_DWORD /d 0 /f`)
-        execSync('sc config "TabletInputService" start= disabled')
-        execSync('net stop "TabletInputService"')
-        execSync('schtasks /End /TN "\\Microsoft\\Windows\\TextServicesFramework\\MsCtfMonitor"')
-        execSync('taskkill /f /im ctfmon.exe')
-        execSync('taskkill /f /im ChsIME.exe')
-        await sleep(2000)
-
-        const systemRoot = path.resolve(process.env['SystemRoot'])
-        const userProfile = path.resolve(process.env['USERPROFILE'])
-        console.log({ systemRoot, userProfile })
-        await Promise.all([
-          fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubi.lex`),
-          fs.promises.copyFile('ChsWubi.lex', `${systemRoot}\\InputMethod\\CHS\\ChsWubiNew.lex`),
-          fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv1.lex`),
-          fs.promises.copyFile('ChsWubiEUDPv1.lex', `${userProfile}\\AppData\\Roaming\\Microsoft\\InputMethod\\Chs\\ChsWubiEUDPv2.lex`),
-        ])
-        console.log('拷贝成功')
-      } catch (err) {
-        console.error('拷贝失败')
-        console.error(err)
-      } finally {
-        try {
-          execSync('sc config "TabletInputService" start= manual')
-          execSync('net start "TabletInputService"')
-          execSync('schtasks /Run /TN "\\Microsoft\\Windows\\TextServicesFramework\\MsCtfMonitor"')
-          await sleep(2000)
-          execSync(`reg add "${regPath}" /v Enable /t REG_DWORD /d 1 /f`)
-        } catch (err) {
-          console.error('服务重启失败')
-          console.error(err)
-        }
-      }
+      const userProfile = process.env.USERPROFILE.replaceAll('\\', '/')
+      const filePath = `${userProfile}/AppData/Roaming/Microsoft/InputMethod/Chs/ChsWubiEUDPv`
+      const file1 = filePath + '1.lex'
+      const file2 = filePath + '2.lex'
+      if (fs.existsSync(file1)) fs.copyFileSync(file1, file1 + '.bak')
+      console.log('Copying', file1)
+      fs.copyFileSync(dir + 'ChsWubiEUDPv1.lex', file1)
+      console.log('Copying', file2)
+      fs.copyFileSync(dir + 'ChsWubiEUDPv1.lex', file2)
+      execSync(dir + 'lex-install.bat')
     }
   },
   // 生成主码表
@@ -209,7 +183,7 @@ const Lex = {
       }
 
       // 生成词条数据
-      const codeBytes = utf16le.toBytes(code).slice(0, -2) // 去掉最后两字节
+      const codeBytes = utf16le.toBytes(code.padEnd(4, '\x00')).slice(0, -2) // 去掉最后两字节
       const wordBytes = utf16le.toBytes(word)
       const entryData = Bytes.fromObj(mainEntryConfig, {
         length: 14 + wordBytes.length,
@@ -239,7 +213,7 @@ const Lex = {
       alphaIndex,
     })
     const res = await fs.promises.writeFile(filename, Bytes.concat([header, ...entryDataList]))
-    console.log(`${filename} written: ${entries.length} entries.`)
+    console.log(`${filename}: ${entries.length} entries.`)
     return res
   },
   // 生成用户码表
@@ -282,7 +256,7 @@ const Lex = {
       offset: offsetList,
     })
     const res = await fs.promises.writeFile(filename, Bytes.concat([header, ...entryDataList]))
-    console.log(`${filename} written: ${entryCount} entries.`)
+    console.log(`${filename}: ${entryCount} entries.`)
     return res
   },
 
