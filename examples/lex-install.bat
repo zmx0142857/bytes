@@ -9,13 +9,12 @@ set "BACKUP_ORIG=%DEST_ORIG%.bak"
 set "SERVICE_NAME=TabletInputService"
 
 set "SOURCE2=%~dp0ChsWubiEUDPv1.lex"
-set "DEST21=%USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv1.lex"
-set "DEST22=%USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv2.lex"
+set "ORIG_USERPROFILE=%USERPROFILE%"
 
 :: 获取管理员权限
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    powershell start -verb runas '%0'
+    powershell start -verb runas '%0' -ArgumentList '%ORIG_USERPROFILE%'
     exit /b
 )
 
@@ -31,10 +30,14 @@ if not exist "%SOURCE%" (
 echo ==============================================
 echo  微软五笔词库替换工具
 echo ==============================================
+
+:: 复制用户词库 (当前用户)
+:: 脚本提权后，环境变量 USERPROFILE 指向管理员的目录, 可以通过 ArgumentList 获取到原用户目录
+set "ORIG_USERPROFILE=%1"
+set "DEST21=%ORIG_USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv1.lex"
+set "DEST22=%ORIG_USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv2.lex"
 echo 正在复制用户词库到 %DEST21%
 echo 正在复制用户词库到 %DEST22%
-
-:: check & copy user dict
 if not exist "%SOURCE2%" (
     echo 错误：找不到文件 "%SOURCE2%"
     pause
@@ -46,16 +49,21 @@ if exist "%DEST21" (
 copy /y "%SOURCE2%" "%DEST21%" >nul
 copy /y "%SOURCE2%" "%DEST22%" >nul
 
-:: 备份原始目标文件（如果存在）
-if exist "%DEST_ORIG%" (
-    echo 正在备份词库到 %BACKUP_ORIG%
-    copy /y "%DEST_ORIG%" "%BACKUP_ORIG%" >nul
-    if %errorlevel% neq 0 (
-        echo 备份失败，请检查权限。
-        pause
-        exit /b 1
-    )
+:: 复制用户词库 (管理员)
+set "DEST21=%USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv1.lex"
+set "DEST22=%USERPROFILE%\AppData\Roaming\Microsoft\InputMethod\Chs\ChsWubiEUDPv2.lex"
+echo 正在复制用户词库到 %DEST21%
+echo 正在复制用户词库到 %DEST22%
+if not exist "%SOURCE2%" (
+    echo 错误：找不到文件 "%SOURCE2%"
+    pause
+    exit /b 1
 )
+if exist "%DEST21" (
+    copy /y "%DEST21%" "%DEST21%.bak"
+)
+copy /y "%SOURCE2%" "%DEST21%" >nul
+copy /y "%SOURCE2%" "%DEST22%" >nul
 
 :: 停止 TabletInputService 服务（如果正在运行）
 sc query "%SERVICE_NAME%" | find "RUNNING" >nul
@@ -87,6 +95,17 @@ for %%F in ("%DEST_ORIG%" "%DEST_NEW%") do (
     if exist %%F (
         takeown /f %%F >nul 2>&1
         icacls %%F /grant administrators:F >nul 2>&1
+    )
+)
+
+:: 备份原始目标文件（如果存在）
+if exist "%DEST_ORIG%" (
+    echo 正在备份词库到 %BACKUP_ORIG%
+    copy /y "%DEST_ORIG%" "%BACKUP_ORIG%" >nul
+    if %errorlevel% neq 0 (
+        echo 备份失败，请检查权限。
+        pause
+        exit /b 1
     )
 )
 

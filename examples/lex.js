@@ -148,15 +148,6 @@ const Lex = {
     ])
 
     if (overwrite) {
-      const userProfile = process.env.USERPROFILE.replaceAll('\\', '/')
-      const filePath = `${userProfile}/AppData/Roaming/Microsoft/InputMethod/Chs/ChsWubiEUDPv`
-      const file1 = filePath + '1.lex'
-      const file2 = filePath + '2.lex'
-      if (fs.existsSync(file1)) fs.copyFileSync(file1, file1 + '.bak')
-      console.log('Copying', file1)
-      fs.copyFileSync(dir + 'ChsWubiEUDPv1.lex', file1)
-      console.log('Copying', file2)
-      fs.copyFileSync(dir + 'ChsWubiEUDPv1.lex', file2)
       execSync(dir + 'lex-install.bat')
     }
   },
