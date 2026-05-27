@@ -1,31 +1,26 @@
-import fs from 'fs'
 import Bytes from '../lib/bytes.js'
 
 const { hex } = Bytes.types
 
+/**
+ * @example
+ * ```
+ * $ echo 'e4bda0e5a5bd68656c6c6f' | bytes bin
+ * 你好hello
+ * ```
+ */
 const Hex = {
-  async cli (argv, { name }) {
-    if (name === 'bin' && argv[0] && argv[1]) {
-      const str = await fs.promises.readFile(argv[0], 'utf-8')
+  async cli (argv, { name, read, write }) {
+    if (name === 'bin') {
+      const str = await read(argv[0], 'utf-8')
       const bytes = hex.toBytes(str)
-      return fs.promises.writeFile(argv[1], bytes)
-    } else if (name === 'hex' && argv[0] && argv[1]) {
-      const bytes = await fs.promises.readFile(argv[0])
+      await write(argv[1], bytes)
+    } else if (name === 'hex') {
+      const bytes = await read(argv[0])
       const str = hex.fromBytes(bytes)
-      return fs.promises.writeFile(argv[1], str, 'utf-8')
-    } else {
-      console.log(`
-usage: bytes COMMAND FIN FOUT
-
-command:
-  hex  bytes to hex
-  bin  hex to bytes
-
-example:
-  hex: 636d 7074
-  bin: cmpt
-`)
+      await write(argv[1], str, 'utf-8')
     }
+    process.exit()
   }
 }
 

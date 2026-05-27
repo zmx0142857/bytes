@@ -1,7 +1,9 @@
 const MD5 = {
   hash (str, { size = 8, format = 'hex', hmac = '' } = {}) {
     size = Number(size)
-    const res = hmac ? this.hmac(hmac, str, size)
+    str = new TextEncoder().encode(str)
+    hmac = new TextEncoder().encode(hmac)
+    const res = hmac.length ? this.hmac(hmac, str, size)
       : this.md5(this.str2arr(str, size), str.length * size)
     switch (format) {
       case 'hex':
@@ -18,7 +20,7 @@ const MD5 = {
     const res = []
     const mask = (1 << size) - 1
     for (let i = 0; i < str.length * size; i += size) {
-      res[i >> 5] |= (str.charCodeAt(i / size) & mask) << (i % 32)
+      res[i >> 5] |= (str[i / size] & mask) << (i % 32)
     }
     return res
   },
@@ -185,10 +187,10 @@ const MD5 = {
       console.log(`usage: bytes md5 <string> size=8 format=hex hmac=<key>
 
 example:
-  bytes md5 'hello world'
-
-output:
+  $ bytes md5 'hello world'
   5eb63bbbe01eeed093cb22bb8f5acdc3
+  $ bytes md5 '你好'
+  7eca689f0d3389d9dea66ae112e5cfd7
 `)
     }
   },

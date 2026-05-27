@@ -22,12 +22,12 @@ const makeBuffer = (arr) => {
 }
 
 const makeStrBuffer = (json) => {
-  let str = JSON.stringify(json)
+  let s = JSON.stringify(json)
   // 对齐 4 字节, 不足补空格
-  if (str.length % 4 !== 0) {
-    str += ' '.repeat(4 - str.length % 4)
+  if (s.length % 4 !== 0) {
+    s += ' '.repeat(4 - s.length % 4)
   }
-  return Bytes.fromStr(str)
+  return str.toBytes(s)
 }
 
 const lineReader = async (filePath, onRead) => {

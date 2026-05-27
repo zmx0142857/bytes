@@ -1,7 +1,7 @@
 import fs from 'fs'
 import Bytes from '../lib/bytes.js'
 
-const { str, uint32 } = Bytes.types
+const { str, uint32, base64 } = Bytes.types
 
 // spec: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 const glbConfig = [
@@ -38,6 +38,11 @@ const accessorComponentTypes = {
   5126: { name: 'float32', length: 4 },
 }
 
+const toAscii = str => Array.from(str, c => {
+  const code = c.charCodeAt(0)
+  return code < 255 ? c : '\\u' + code.toString(16).padStart(4, '0')
+}).join('')
+
 const Glb = {
   info (bytes) {
     let res = {}, offset = 0
@@ -47,7 +52,7 @@ const Glb = {
       const chunkHeader = Bytes.toObj(glbChunkConfig, bytes, offset)
       offset += 8
       if (chunkHeader.chunkType === 'JSON') {
-        const json = Bytes.toStr(bytes.slice(offset, offset + chunkHeader.chunkLength))
+        const json = str.fromBytes(bytes.slice(offset, offset + chunkHeader.chunkLength))
         res = JSON.parse(json)
         res.buffers.length = 0
       } else {
@@ -65,7 +70,7 @@ const Glb = {
   async toGltf (bytes, outputPath = './output.gltf') {
     const info = Glb.info(bytes)
     info.buffers = info.buffers.map(buf => {
-      buf.uri = `data:application/octet-stream;base64,${Bytes.toBase64(buf.data)}`
+      buf.uri = `data:application/octet-stream;base64,${base64.fromBytes(buf.data)}`
       delete buf.data
       return buf
     })
@@ -79,7 +84,7 @@ const Glb = {
   },
   async toGlb (info, outputPath = './output.glb') {
     const buffers = info.buffers.map(buf => {
-      const data = buf.data || Bytes.fromBase64(buf.uri.split(',')[1])
+      const data = buf.data || base64.toBytes(buf.uri.split(',')[1])
       delete buf.uri
       delete buf.data
       return {
@@ -92,7 +97,7 @@ const Glb = {
         }),
       }
     })
-    let jsonData = Bytes.fromStr(JSON.stringify(info))
+    let jsonData = str.toBytes(toAscii(JSON.stringify(info)))
     // align to 4 bytes
     if (jsonData.length % 4) {
       jsonData = Bytes.concat([jsonData, new Uint8Array(4 - jsonData.length % 4).fill(32)]) // fill with space
